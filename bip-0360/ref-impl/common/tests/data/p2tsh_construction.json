@@ -5,11 +5,14 @@
             "id": "p2tsh_missing_leaf_script_tree_error",
             "objective": "Tests P2TSH with missing leaf script tree",
             "given": {
-                "script_tree": ""
+                "scriptTree": null
             },
             "intermediary": {
+                "leafHashes": [],
+                "merkleRoot": null
             },
             "expected": {
+                "scriptPubKey": null,
                 "error": "P2TSH requires a script tree with at least one leaf"
             }
         },
