@@ -1,3 +1,3 @@
-[submodule "bip-0360/ref-impl/python/bitcoin-tools"]
-	path = bip-0360/ref-impl/python/bitcoin-tools
-	url = https://github.com/notmike-5/bitcoin-tools.git
+[submodule "bip-0360/ref-impl/python/bitcointools"]
+	path = bip-0360/ref-impl/python/bitcointools
+	url = https://github.com/notmike-5/bitcointools.git
