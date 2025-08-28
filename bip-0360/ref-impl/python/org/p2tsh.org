@@ -1,0 +1,6 @@
+* Imports
+#+begin_src python :tangle ../p2tsh.py :results silent :session pybtc
+
+from bitcointools import helpers, hashes, segwit, transaction, bech32, taproot
+
+#+end_src
