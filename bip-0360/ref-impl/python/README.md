@@ -5,8 +5,16 @@ This python project contains a simple implementation of some essential function 
 
 # How to Use
 
-This project was developed with Python 3.13.x, but any modern interpreter should do just nice.
+This project was developed with `Python 3.13.x`, but any modern interpreter should do just nice.
 
 # Tests
 
+To run unit tests,
+
+``` bash
+source test.sh
+```
+
 # Examples
+
+Other instructive and end-to-end examples can be found in `examples/`
