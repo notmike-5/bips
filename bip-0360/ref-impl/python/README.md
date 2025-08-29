@@ -18,9 +18,15 @@ git clone https://github.com/notmike-5/bips.git
 
 # Initialize Submodules
 
-If you did not clone with `git clone --recurse-submodules` then you will need to initialize the bitcointools submodule.
+If you did not clone with `git clone --recurse-submodules` then you will need to initialize the bitcointools submodule in the BIP-0360 repository.
 
-To do this, run `git submodule init && git submodule update` from inside the already cloned repository.
+To do this, run...
+``` bash
+cd bips/bip-0360/ref-impl/python
+
+git submodule init && git submodule update
+```
+
 
 # (Optional) Create a Python Virtual Environment and Activate it
 
@@ -30,13 +36,13 @@ It is good practice to explore these things in a local virtual environment. Here
 python -m venv .venv
 source .venv/bin/activate
 ```
-You may deactivate later by calling `deactivate`.
+You may deactivate the virtualenv anytime later by calling `deactivate`.
 
 # Get Python Dependencies
 
 Python dependencies can be installed with  `python -m pip -r requirements.txt`.
 
-# Tests
+# Tests (finally)
 
 To run unit tests,
 
