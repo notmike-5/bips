@@ -7,6 +7,16 @@ This project contains a simple implementation of functions used to form and spen
 
 This project was developed with `Python 3.13.x`, but any modern interpreter should do just nice.
 
+# Initialize Submodules
+
+If you did not clone with `git clone --recurse-submodules` then you will need to initialize the bitcointools submodule. 
+
+To do this, run `git submodule init && git submodule update` from inside the already cloned repository.
+
+# Install Dependencies
+
+Python dependencies can be installed with  `python -m pip -r requirements.txt`
+
 # Tests
 
 To run unit tests,
