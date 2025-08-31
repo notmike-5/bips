@@ -12,7 +12,7 @@ This project was developed with `Python 3.13.x`, but any modern interpreter shou
 # Clone the Repository
 
 ``` bash
-git clone https://github.com/notmike-5/bips.git
+git clone -b p2tsh https://github.com/notmike-5/bips.git
 ```
 (Optional: You could clone with `--recurse-submodules` here, but this will also load submodules from any BIP that has them.)
 
