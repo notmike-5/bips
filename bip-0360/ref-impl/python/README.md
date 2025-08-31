@@ -41,7 +41,7 @@ You may deactivate the virtualenv anytime later by calling `deactivate`.
 
 Python dependencies can be installed with  
 ``` bash 
-python -m pip -r requirements.txt
+pip -r requirements.txt
 ```
 
 # Tests (finally)
