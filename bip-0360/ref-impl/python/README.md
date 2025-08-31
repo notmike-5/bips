@@ -27,7 +27,6 @@ cd bips/bip-0360/ref-impl/python
 git submodule init && git submodule update
 ```
 
-
 # (Optional) Create a Python Virtual Environment and Activate it
 
 It is good practice to explore these things in a local virtual environment. Here is a minimal example:
@@ -40,7 +39,10 @@ You may deactivate the virtualenv anytime later by calling `deactivate`.
 
 # Get Python Dependencies
 
-Python dependencies can be installed with  `python -m pip -r requirements.txt`.
+Python dependencies can be installed with  
+``` bash 
+python -m pip -r requirements.txt
+```
 
 # Tests (finally)
 
