@@ -1,0 +1,313 @@
+**  P2TR End-to-End Tutorial
+
+This tutorial is inspired by the tutorial of the same name from
+@jbride's rust demonstration of Pay-to-Taproot. What follows
+is a demonstration of a Pay-to-Taproot script-path spend.
+
+In this tutorial we will create and fund a P2TR UTXO, and then we will
+spend that P2TR UTXO to a P2WPKH address.
+
+*** Pre-reqs
+
+**** Bitcoin Core
+
+The [[https://github.com/jbride/bitcoin/tree/p2qrh][p2tsh branch]] of bitcoin core is needed.
+
+***** Clone the p2tsh branch of Bitcoin Core
+
+#+begin_src shell :tangle ../p2tr-end-to-end-py.sh :session p2tr-py :results silent :dir ..
+
+#!/usr/bin/env sh
+
+git clone -b p2tsh https://github.com/jbride/bitcoin.git
+
+#+end_src
+
+***** Build Bitcoin Core
+
+Build instructions are documented [[https://github.com/bitcoin/bitcoin/blob/master/doc/build-unix.md][here]].
+
+As such, the following is an example series of steps (on a Linux host) to compile and run the `p2tsh` branch of Bitcoin Core:
+
+#+begin_src shell :tangle ../p2tr-end-to-end-py.sh :session p2tr-py :results silent :dir ..
+
+cd bitcoin/
+
+cmake -B build \
+        -DWITH_ZMQ=ON \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DBUILD_BENCH=ON \
+        -DSANITIZERS=address,undefined
+
+cmake --build build -j$(nproc)
+
+#+end_src
+
+***** Start Bitcoin Core node in `regtest` mode
+#+begin_src shell :tangle ../p2tr-end-to-end-py.sh :session p2tr-py :results silent :dir ..
+
+./build/bin/bitcoind -daemon=0 -regtest=1 -txindex
+
+#+end_src
+
+
+**** Shell Environment
+
+- *awk* : standard utility for all Linux distros (often packaged as `gawk`).
+- *jq*: ensure json parsing utility is installed and available via your $PATH.
+- *b-reg* command line alias:
+****** Configure an alias to the `bitcoin-cli` command that connects to your
+customized bitcoin-core node running in `regtest` mode.
+#+begin_src shell :tangle ../p2tr-end-to-end-py.sh :session p2tr-py :results silent :dir ..
+
+alias b-reg="./build/bin/bitcoin-cli -regtest"
+
+#+end_src
+
+
+**** Bitcoin Core Wallet
+
+This tutorial assumes that a bitcoin core wallet is available.
+For example, the following would be sufficient:
+
+#+begin_src shell :tangle ../p2tr-end-to-end-py.sh :session p2tr-py :results silent :dir ..
+
+# only do this the first time we create the regtest wallet
+if [ ! -f "~/.bitcoin/regtest/wallets/regtest" ]; then
+    export W_NAME=regtest \
+        && export WPASS=regtest
+
+    b-reg -named createwallet \
+          wallet_name=$W_NAME \
+          descriptors=true \
+          passphrase="$WPASS" \
+          load_on_startup=true
+fi
+
+#+end_src
+
+
+*** Fund P2TR UTXO
+
+**** 0 (optional): Define number of leaves in tap tree as well as the tap leaf to later use as the unlocking script:
+
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :results silent :session p2tr
+
+export TOTAL_LEAF_COUNT=5 \
+    && export LEAF_OF_INTEREST=4
+
+#+end_src
+
+NOTE: Defaults are 4 leaves with the first leaf (leaf 0) as the
+script to later use as the unlocking script.
+
+
+**** 1 Generate a P2TR scriptPubKey with multi-leaf taptree
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2t :results output replace
+
+export BITCOIN_NETWORK=regtest \
+    && export BITCOIN_ADDRESS_INFO=$( cargo run --example p2tr_construction ) \
+    && echo $BITCOIN_ADDRESS_INFO | jq -r .
+
+#+end_src
+
+NOTE: In `regtest`, you can expect a P2TR address that starts with: `bcrt1q` .
+
+NOTE: In the context of P2TR, the _tree_root_hex_ from the response is
+in reference to the _merkle_root_ used in this tutorial.
+
+
+**** 2 Set some env vars (for use in later steps in this tutorial)  based on previous result:
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :results silent :session p2tr
+
+export MERKLE_ROOT=$( echo $BITCOIN_ADDRESS_INFO | jq -r '.taptree_return.tree_root_hex' ) \
+    && export LEAF_SCRIPT_PRIV_KEY_HEX=$( echo $BITCOIN_ADDRESS_INFO | jq -r '.taptree_return.leaf_script_priv_key_hex' ) \
+    && export LEAF_SCRIPT_HEX=$( echo $BITCOIN_ADDRESS_INFO | jq -r '.taptree_return.leaf_script_hex' ) \
+    && export CONTROL_BLOCK_HEX=$( echo $BITCOIN_ADDRESS_INFO | jq -r '.taptree_return.control_block_hex' ) \
+    && export FUNDING_SCRIPT_PUBKEY=$( echo $BITCOIN_ADDRESS_INFO | jq -r '.utxo_return.script_pubkey_hex' ) \
+    && export P2TR_ADDR=$( echo $BITCOIN_ADDRESS_INFO | jq -r '.utxo_return.bech32m_address' )
+
+#+end_src
+
+
+**** 3 View tapscript used in target leaf of taptree:
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+b-reg decodescript $LEAF_SCRIPT_HEX | jq -r '.asm'
+
+#+end_src
+
+NOTE:  Notice that this script commits to a Schnorr 32-byte x-only
+public key.
+
+
+**** 4 Fund this P2TR address with the coinbase reward of a newly generated block:
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export COINBASE_REWARD_TX_ID=$( b-reg -named generatetoaddress 1 $P2TR_ADDR 5 | jq -r '.[]' ) \
+    && echo $COINBASE_REWARD_TX_ID
+
+#+end_src
+
+NOTE:  Sometimes Bitcoin Core may not hit a block (even on regtest).
+If so, just try the above command again.
+
+
+**** 5 View summary of all txs that have funded P2TR address
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export P2TR_DESC=$( b-reg getdescriptorinfo "addr($P2TR_ADDR)" | jq -r '.descriptor' ) \
+    && echo $P2TR_DESC \
+    && b-reg scantxoutset start '[{"desc": "'''$P2TR_DESC'''"}]'
+
+#+end_src
+
+
+**** 6 Grab txid of first tx with unspent funds:
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export FUNDING_TX_ID=$( b-reg scantxoutset start '[{"desc": "'''$P2TR_DESC'''"}]' | jq -r '.unspents[0].txid' ) \
+    && echo $FUNDING_TX_ID
+
+#+end_src
+
+
+**** 7 Set `FUNDING_UTXO_INDEX` env var (used later to correctly identify funding UTXO when generating the spending tx)
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :results silent :session p2tr
+
+export FUNDING_UTXO_INDEX=0
+
+#+end_src
+
+
+**** 8 View details of funding UTXO to the P2TR address
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export FUNDING_UTXO=$( b-reg getrawtransaction $FUNDING_TX_ID 1 | jq -r '.vout['''$FUNDING_UTXO_INDEX''']' ) \
+    && echo $FUNDING_UTXO | jq -r .
+
+#+end_src
+
+NOTE: the above only works when Bitcoin Core is started with the following arg: -txindex
+
+
+*** Spend P2TR UTXO
+
+**** 1 Determine value (in sats) of funding utxo
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export FUNDING_UTXO_AMOUNT_SATS=$(echo $FUNDING_UTXO | jq -r '.value' | awk '{printf "%.0f", $1 * 100000000}') \
+    && echo $FUNDING_UTXO_AMOUNT_SATS
+
+#+end_src
+
+
+**** 2 Generate enough blocks to unlock the UTXO
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+b-reg -generate 110
+
+#+end_src
+
+Otherwise, you may see an error from bitcoin core such as the following when attempting to spend:
+
+__bad-txns-premature-spend-of-coinbase, tried to spend coinbase at depth
+1__
+
+
+**** 3 Referencing the funding tx (via $FUNDING_TX_ID and $FUNDING_UTXO_INDEX), create the spending tx:
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export SPEND_DETAILS=$( cargo run --example p2tr_spend )
+
+export RAW_P2TR_SPEND_TX=$( echo $SPEND_DETAILS | jq -r '.tx_hex' ) \
+        && echo "RAW_P2TR_SPEND_TX = $RAW_P2TR_SPEND_TX" \
+    && export SIG_HASH=$( echo $SPEND_DETAILS | jq -r '.sighash' ) \
+        && echo "SIG_HASH = $SIG_HASH" \
+    && export SIG_BYTES=$( echo $SPEND_DETAILS | jq -r '.sig_bytes' ) \
+        && echo "SIG_BYTES = $SIG_BYTES"
+
+#+end_src
+
+
+**** 4 Inspect the spending tx
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+b-reg decoderawtransaction $RAW_P2TR_SPEND_TX
+
+#+end_src
+
+
+**** 5 Test standardness of the spending tx by sending to local mempool of p2tr enabled  Bitcoin Core
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+b-reg testmempoolaccept '["'''$RAW_P2TR_SPEND_TX'''"]'
+
+#+end_src
+
+
+**** 6 Submit tx
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export P2TR_SPENDING_TX_ID=$( b-reg sendrawtransaction $RAW_P2TR_SPEND_TX ) \
+    && echo $P2TR_SPENDING_TX_ID
+
+#+end_src
+
+NOTE:  Should return same tx id as was included in $RAW_P2TR_SPEND_TX
+
+
+*** Mine P2TR UTXO
+
+**** 1 View tx in mempool
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+b-reg getrawtransaction $P2TR_SPENDING_TX_ID 1
+
+#+end_src
+NOTE: There will not yet be a field `blockhash` in the response.
+
+
+**** 2 Mine 1 Block
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+b-reg -generate 1
+
+#+end_src
+
+
+**** 3 Obtain `blockhash` field of mined tx
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+export BLOCK_HASH=$( b-reg getrawtransaction $P2TR_SPENDING_TX_ID 1 | jq -r '.blockhash' ) \
+    && echo $BLOCK_HASH
+
+#+end_src
+
+
+**** 4 View tx in Block
+
+#+begin_src shell :tangle ../p2tr-end-to-end.sh :dir .. :session p2tr :results output replace
+
+b-reg getblock $BLOCK_HASH | jq -r .tx
+
+#+end_src
+
+
+*** TO-DO
